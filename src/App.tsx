@@ -147,8 +147,12 @@ function App() {
       let errorMessage = "Could not refresh auction data. Please try again later."
       
       if (error instanceof Error) {
-        if (error.message.includes('Unable to fetch real auction data')) {
-          errorMessage = "Unable to fetch real auction data. The auction may have ended or eBay may be blocking requests. Consider enabling Demo Mode."
+        if (error.message === 'EBAY_BLOCKING_REQUESTS') {
+          errorMessage = "eBay is blocking refresh requests. This is normal due to anti-bot protection."
+        } else if (error.message === 'SCRAPING_TIMEOUT') {
+          errorMessage = "Refresh request timed out. Will retry automatically later."
+        } else if (error.message === 'PRICE_EXTRACTION_FAILED') {
+          errorMessage = "Could not extract updated price data. The auction may have ended."
         } else if (error.message.includes('timeout')) {
           errorMessage = "Connection timed out. Data refresh will be retried automatically."
         } else if (error.message.includes('network')) {
@@ -238,15 +242,21 @@ function App() {
         if (error.message.includes('valid eBay auction URL')) {
           errorMessage = "Please enter a valid eBay auction URL (e.g., https://www.ebay.com/itm/...)"
           errorTitle = "Invalid URL"
-        } else if (error.message.includes('Unable to fetch real auction data')) {
-          errorMessage = "Cannot fetch live eBay data due to server restrictions. Would you like to enable Demo Mode to test the app functionality?"
-          errorTitle = "Live Data Unavailable"
-        } else if (error.message.includes('eBay blocking automated requests')) {
-          errorMessage = "eBay is currently blocking automated requests. You can enable Demo Mode to test the app, or try again later with a different auction URL."
-          errorTitle = "Access Restricted"
+        } else if (error.message === 'EBAY_BLOCKING_REQUESTS') {
+          errorMessage = "eBay is blocking automated requests (Error 500). This is common due to anti-bot protection. Enable Demo Mode to test the app functionality."
+          errorTitle = "eBay Access Blocked"
+        } else if (error.message === 'SCRAPING_TIMEOUT') {
+          errorMessage = "Request timed out while fetching auction data. eBay may be slow or blocking requests. Try Demo Mode for testing."
+          errorTitle = "Connection Timeout"
+        } else if (error.message === 'PRICE_EXTRACTION_FAILED') {
+          errorMessage = "Could not extract price information from the auction page. The page format may have changed. Try Demo Mode for testing."
+          errorTitle = "Price Data Unavailable"
+        } else if (error.message === 'SCRAPING_FAILED') {
+          errorMessage = "Failed to access the auction page. eBay may be blocking automated access. Enable Demo Mode to test the app."
+          errorTitle = "Page Access Failed"
         } else {
           // For other errors, show a simplified message with option to use demo mode
-          errorMessage = "Unable to fetch auction data. This could be due to network issues or eBay restrictions. Try enabling Demo Mode to test the app functionality."
+          errorMessage = "Unable to fetch auction data. This is likely due to eBay's anti-bot protection. Enable Demo Mode to test the app functionality."
           errorTitle = "Data Fetch Failed"
         }
       }
@@ -783,39 +793,32 @@ function App() {
                 </div>
 
                 {demoMode ? (
-                  <Alert className="border-yellow-200 bg-yellow-50">
-                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    <AlertDescription className="text-yellow-800">
-                      <strong>Demo Mode Active:</strong> Any eBay URL you enter will generate simulated auction data for testing. This is perfect for exploring the app's features without needing real auction access.
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">
+                      <strong>Demo Mode Active:</strong> Perfect for testing! Any eBay URL will generate realistic simulated auction data. All app features work normally, but no real bids are placed.
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <Alert className="border-green-200 bg-green-50">
-                    <AlertTriangle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">
-                      <strong>Live Data Mode:</strong> This tool fetches REAL auction data from eBay. If eBay blocks the request, you'll see an error message with the option to enable Demo Mode for testing.
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-800">
+                      <strong>Live Data Mode:</strong> Attempts to fetch real eBay data, but eBay often blocks automated requests (Error 500). <strong>Recommendation: Enable Demo Mode for reliable testing.</strong>
                     </AlertDescription>
                   </Alert>
                 )}
 
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Data Sources:</strong> The tool tries multiple approaches to get real auction data: eBay's public APIs, direct web scraping, mobile site scraping, and CORS proxy methods. If all methods fail, you can enable Demo Mode to test the app functionality.
+                <Alert className="border-blue-200 bg-blue-50">
+                  <AlertTriangle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <strong>Why eBay Blocks Requests:</strong> eBay uses sophisticated anti-bot protection to prevent automated scraping. This is normal and expected. Demo Mode provides the same functionality with simulated data.
                   </AlertDescription>
                 </Alert>
 
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Auto-refresh:</strong> Auction data is automatically refreshed every 30 seconds, and every 10 seconds when the auction is ending soon (within 5 minutes).
-                  </AlertDescription>
-                </Alert>
-
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Max Bid Protection:</strong> Your bid will never exceed the maximum amount you set, even if the current bid is higher.
+                    <strong>App Features:</strong> Auto-refresh every 30 seconds (10 seconds when ending soon), max bid protection, 3-second snipe timing, and complete bid history tracking.
                   </AlertDescription>
                 </Alert>
 
