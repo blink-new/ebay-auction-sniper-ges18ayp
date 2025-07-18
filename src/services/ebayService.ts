@@ -46,7 +46,7 @@ export class EbayService {
     // Method 2: Try direct page scraping with enhanced parsing
     try {
       console.log('Attempting enhanced web scraping...')
-      const pageData = await this.performScrapingWithTimeout(processedUrl, 20000)
+      const pageData = await this.performScrapingWithTimeout(processedUrl, 15000)
       console.log('Web scraping successful, parsing real auction data...')
       const auctionData = this.parseEbayPageData(pageData, itemId)
       
@@ -57,9 +57,16 @@ export class EbayService {
       }
     } catch (error) {
       console.warn('Enhanced scraping failed:', error)
-      // If it's a price extraction error, try to continue with other methods
-      if (error instanceof Error && error.message.includes('Unable to extract current bid')) {
-        console.log('Price extraction failed, trying alternative methods...')
+      
+      // Check if it's a server error (500) and provide specific handling
+      if (error instanceof Error) {
+        if (error.message.includes('500') || error.message.includes('server responded with a status of 500')) {
+          console.log('Server error detected, skipping to alternative methods...')
+        } else if (error.message.includes('Unable to extract current bid')) {
+          console.log('Price extraction failed, trying alternative methods...')
+        } else if (error.message.includes('timeout')) {
+          console.log('Scraping timeout, trying faster alternative methods...')
+        }
       }
     }
 
@@ -98,28 +105,22 @@ export class EbayService {
       console.warn('Proxy method failed:', error)
     }
 
-    // If all real data methods fail, provide a helpful fallback with demo data
-    console.warn('All real data extraction methods failed. Providing demo data as fallback.')
+    // If all real data methods fail, provide a helpful error message
+    console.error('All real data extraction methods failed.')
     
-    // Extract what we can from the URL
-    const title = `eBay Auction Item (ID: ${itemId}) - Demo Mode`
-    const demoPrice = Math.floor(Math.random() * 200) + 50 // $50-$250 demo price
-    const endTime = new Date(Date.now() + (Math.floor(Math.random() * 24) + 1) * 60 * 60 * 1000) // 1-24 hours
-    
-    console.log('Returning demo auction data:', { title, currentBid: demoPrice, endTime, itemId })
-    
-    return {
-      title,
-      currentBid: demoPrice,
-      endTime,
-      itemId,
-      imageUrl: undefined,
-      seller: 'demo_seller',
-      bidCount: Math.floor(Math.random() * 10) + 1,
-      condition: 'Used',
-      location: 'Demo Location',
-      shipping: 'Demo shipping info'
-    }
+    // Provide a more helpful error message instead of demo data
+    throw new Error(
+      'Unable to fetch real auction data from eBay. This could be due to:\n\n' +
+      '• eBay blocking automated requests (most common)\n' +
+      '• The auction URL is invalid or the item has been removed\n' +
+      '• Network connectivity issues\n' +
+      '• Server maintenance or temporary outages\n\n' +
+      'Please try:\n' +
+      '1. Verify the eBay auction URL is correct and active\n' +
+      '2. Wait a few minutes and try again\n' +
+      '3. Use a different eBay auction URL for testing\n\n' +
+      'Note: This tool requires access to live eBay data to function properly.'
+    )
   }
 
   /**
@@ -759,6 +760,7 @@ export class EbayService {
         reject(new Error(`Scraping timeout after ${timeoutMs}ms`))
       }, timeoutMs)
 
+      // Try scraping with better error handling
       blink.data.scrape(url)
         .then(result => {
           clearTimeout(timeoutId)
@@ -766,7 +768,9 @@ export class EbayService {
         })
         .catch(error => {
           clearTimeout(timeoutId)
-          reject(error)
+          console.warn('Scraping failed:', error)
+          // Instead of rejecting, return a structured error that we can handle
+          reject(new Error(`Scraping failed: ${error.message || 'Unknown error'}`))
         })
     })
   }

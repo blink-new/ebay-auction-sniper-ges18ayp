@@ -54,6 +54,7 @@ function App() {
   const [isAddingAuction, setIsAddingAuction] = useState(false)
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [demoMode, setDemoMode] = useState(false)
 
   // Authentication setup
   useEffect(() => {
@@ -66,8 +67,48 @@ function App() {
 
   // Extract auction data from eBay URL using real eBay service
   const extractAuctionData = async (url: string): Promise<EbayAuctionData> => {
+    if (demoMode) {
+      return generateDemoAuctionData(url)
+    }
     return await EbayService.extractAuctionData(url)
   }
+
+  // Generate demo auction data for testing
+  const generateDemoAuctionData = useCallback((url: string): EbayAuctionData => {
+    const itemId = url.match(/\/(\d+)/)?.[1] || Date.now().toString()
+    
+    const demoTitles = [
+      'Apple iPhone 15 Pro Max 256GB - Natural Titanium (Unlocked)',
+      'Sony PlayStation 5 Console - Digital Edition',
+      'MacBook Pro 16" M3 Pro Chip 512GB SSD - Space Black',
+      'Nintendo Switch OLED Model - White',
+      'Samsung Galaxy S24 Ultra 512GB - Titanium Black',
+      'iPad Pro 12.9" M2 Chip 256GB WiFi + Cellular',
+      'Dell XPS 13 Plus Laptop Intel i7 32GB RAM 1TB SSD',
+      'Canon EOS R6 Mark II Mirrorless Camera Body',
+      'Bose QuietComfort Ultra Wireless Headphones',
+      'Apple Watch Series 9 45mm GPS + Cellular - Midnight'
+    ]
+    
+    const randomTitle = demoTitles[Math.floor(Math.random() * demoTitles.length)]
+    const currentBid = Math.floor(Math.random() * 800) + 100 // $100-$900
+    const hoursFromNow = Math.floor(Math.random() * 48) + 1 // 1-48 hours
+    const minutesFromNow = Math.floor(Math.random() * 60)
+    const endTime = new Date(Date.now() + (hoursFromNow * 60 + minutesFromNow) * 60 * 1000)
+    
+    return {
+      title: `${randomTitle} (Demo Mode)`,
+      currentBid,
+      endTime,
+      itemId,
+      imageUrl: undefined,
+      seller: 'demo_seller_' + Math.floor(Math.random() * 100),
+      bidCount: Math.floor(Math.random() * 25) + 1,
+      condition: ['New', 'Used - Excellent', 'Used - Good', 'Refurbished'][Math.floor(Math.random() * 4)],
+      location: ['California, US', 'New York, US', 'Texas, US', 'Florida, US'][Math.floor(Math.random() * 4)],
+      shipping: ['Free shipping', '$9.99 shipping', '$15.00 expedited', 'Local pickup'][Math.floor(Math.random() * 4)]
+    }
+  }, [])
 
   // Refresh auction data
   const refreshAuctionData = useCallback(async (auctionId: string) => {
@@ -75,7 +116,13 @@ function App() {
     if (!auction) return
 
     try {
-      const updatedData = await EbayService.monitorAuction(auction.url)
+      let updatedData
+      if (demoMode || auction.title.includes('(Demo Mode)')) {
+        // Generate new demo data for refresh
+        updatedData = generateDemoAuctionData(auction.url)
+      } else {
+        updatedData = await EbayService.monitorAuction(auction.url)
+      }
       
       setAuctions(prev => prev.map(a => 
         a.id === auctionId 
@@ -92,7 +139,7 @@ function App() {
 
       toast({
         title: "Auction Updated",
-        description: `Current bid: $${updatedData.currentBid.toFixed(2)}`,
+        description: `Current bid: ${updatedData.currentBid.toFixed(2)}${demoMode || auction.title.includes('(Demo Mode)') ? ' (Demo)' : ''}`,
       })
     } catch (error) {
       console.error('Error refreshing auction data:', error)
@@ -100,8 +147,8 @@ function App() {
       let errorMessage = "Could not refresh auction data. Please try again later."
       
       if (error instanceof Error) {
-        if (error.message.includes('Unable to fetch REAL auction data')) {
-          errorMessage = "Unable to fetch real auction data. The auction may have ended or eBay may be blocking requests."
+        if (error.message.includes('Unable to fetch real auction data')) {
+          errorMessage = "Unable to fetch real auction data. The auction may have ended or eBay may be blocking requests. Consider enabling Demo Mode."
         } else if (error.message.includes('timeout')) {
           errorMessage = "Connection timed out. Data refresh will be retried automatically."
         } else if (error.message.includes('network')) {
@@ -115,7 +162,7 @@ function App() {
         variant: "destructive"
       })
     }
-  }, [auctions])
+  }, [auctions, demoMode, generateDemoAuctionData])
 
   const addAuction = async () => {
     if (!newAuctionUrl.trim() || !newMaxBid.trim()) {
@@ -191,14 +238,16 @@ function App() {
         if (error.message.includes('valid eBay auction URL')) {
           errorMessage = "Please enter a valid eBay auction URL (e.g., https://www.ebay.com/itm/...)"
           errorTitle = "Invalid URL"
-        } else if (error.message.includes('Unable to extract current bid')) {
-          errorMessage = "Could not extract the current bid price from this auction. Using demo data instead. Note: Demo data should not be used for real bidding."
-          errorTitle = "Price Extraction Failed"
-        } else if (error.message.includes('Demo Mode')) {
-          errorMessage = "Real auction data could not be retrieved. Demo data is being used. Please verify the auction URL and try again for real bidding."
-          errorTitle = "Demo Mode Active"
+        } else if (error.message.includes('Unable to fetch real auction data')) {
+          errorMessage = "Cannot fetch live eBay data due to server restrictions. Would you like to enable Demo Mode to test the app functionality?"
+          errorTitle = "Live Data Unavailable"
+        } else if (error.message.includes('eBay blocking automated requests')) {
+          errorMessage = "eBay is currently blocking automated requests. You can enable Demo Mode to test the app, or try again later with a different auction URL."
+          errorTitle = "Access Restricted"
         } else {
-          errorMessage = error.message
+          // For other errors, show a simplified message with option to use demo mode
+          errorMessage = "Unable to fetch auction data. This could be due to network issues or eBay restrictions. Try enabling Demo Mode to test the app functionality."
+          errorTitle = "Data Fetch Failed"
         }
       }
       
@@ -472,7 +521,7 @@ function App() {
                   Sniper Controls
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="auto-snipe"
@@ -481,11 +530,30 @@ function App() {
                   />
                   <Label htmlFor="auto-snipe">Auto-snipe enabled (3 seconds remaining)</Label>
                 </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="demo-mode"
+                    checked={demoMode}
+                    onCheckedChange={setDemoMode}
+                  />
+                  <Label htmlFor="demo-mode">Demo Mode (use simulated auction data)</Label>
+                </div>
+                
                 {!autoSnipeEnabled && (
                   <Alert className="mt-4">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>
                       Auto-snipe is disabled. Auctions will not be bid on automatically.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {demoMode && (
+                  <Alert className="mt-4 border-yellow-200 bg-yellow-50">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800">
+                      Demo Mode is active. All auction data will be simulated for testing purposes.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -714,17 +782,26 @@ function App() {
                   </p>
                 </div>
 
-                <Alert className="border-green-200 bg-green-50">
-                  <AlertTriangle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    <strong>Real Data Mode:</strong> This tool now fetches ACTUAL auction prices from eBay using multiple methods including API endpoints, web scraping, and proxy services. Demo mode has been disabled to ensure you get real pricing data for effective bidding decisions.
-                  </AlertDescription>
-                </Alert>
+                {demoMode ? (
+                  <Alert className="border-yellow-200 bg-yellow-50">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800">
+                      <strong>Demo Mode Active:</strong> Any eBay URL you enter will generate simulated auction data for testing. This is perfect for exploring the app's features without needing real auction access.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert className="border-green-200 bg-green-50">
+                    <AlertTriangle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">
+                      <strong>Live Data Mode:</strong> This tool fetches REAL auction data from eBay. If eBay blocks the request, you'll see an error message with the option to enable Demo Mode for testing.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Data Sources:</strong> The tool tries multiple approaches to get real auction data: eBay's public APIs, direct web scraping, mobile site scraping, and CORS proxy methods. If all methods fail, you'll get a clear error message instead of fake demo data.
+                    <strong>Data Sources:</strong> The tool tries multiple approaches to get real auction data: eBay's public APIs, direct web scraping, mobile site scraping, and CORS proxy methods. If all methods fail, you can enable Demo Mode to test the app functionality.
                   </AlertDescription>
                 </Alert>
 
@@ -746,12 +823,12 @@ function App() {
                   {isAddingAuction ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Fetching Real Auction Data...
+                      {demoMode ? 'Generating Demo Data...' : 'Fetching Real Auction Data...'}
                     </>
                   ) : (
                     <>
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Auction to Monitor
+                      {demoMode ? 'Add Demo Auction' : 'Add Auction to Monitor'}
                     </>
                   )}
                 </Button>
