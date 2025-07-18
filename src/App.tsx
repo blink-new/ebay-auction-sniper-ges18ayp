@@ -191,12 +191,12 @@ function App() {
         if (error.message.includes('valid eBay auction URL')) {
           errorMessage = "Please enter a valid eBay auction URL (e.g., https://www.ebay.com/itm/...)"
           errorTitle = "Invalid URL"
-        } else if (error.message.includes('Unable to fetch REAL auction data')) {
-          errorMessage = error.message
-          errorTitle = "Real Data Unavailable"
         } else if (error.message.includes('Unable to extract current bid')) {
-          errorMessage = "Could not extract the current bid price from this auction. The auction may have ended or the URL may be invalid."
+          errorMessage = "Could not extract the current bid price from this auction. Using demo data instead. Note: Demo data should not be used for real bidding."
           errorTitle = "Price Extraction Failed"
+        } else if (error.message.includes('Demo Mode')) {
+          errorMessage = "Real auction data could not be retrieved. Demo data is being used. Please verify the auction URL and try again for real bidding."
+          errorTitle = "Demo Mode Active"
         } else {
           errorMessage = error.message
         }
@@ -607,6 +607,16 @@ function App() {
                               <span>Shipping: {auction.shipping}</span>
                             )}
                           </div>
+
+                          {/* Demo Mode Alert */}
+                          {auction.title.includes('Demo Mode') && (
+                            <Alert variant="destructive">
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertDescription>
+                                <strong>Demo Mode:</strong> This auction is using simulated data. Real auction data could not be retrieved.
+                              </AlertDescription>
+                            </Alert>
+                          )}
 
                           {/* Max Bid Protection Alert */}
                           {auction.maxBid <= auction.currentBid && (
